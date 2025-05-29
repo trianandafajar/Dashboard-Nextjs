@@ -1,4 +1,3 @@
-// tailwind.config.js (shimmer animation)
 module.exports = {
   theme: {
     extend: {
@@ -14,12 +13,10 @@ module.exports = {
   },
 };
 
-// components/skeletons/SkeletonBox.tsx
 export function SkeletonBox({ className = '' }: { className?: string }) {
   return <div className={`rounded bg-gray-100 ${className}`} />;
 }
 
-// components/skeletons/CardSkeleton.tsx
 import { SkeletonBox } from './SkeletonBox';
 const shimmer =
   'before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent';
@@ -40,7 +37,6 @@ export function CardSkeleton() {
   );
 }
 
-// components/skeletons/CardsSkeleton.tsx
 import { CardSkeleton } from './CardSkeleton';
 
 export function CardsSkeleton() {
@@ -53,7 +49,6 @@ export function CardsSkeleton() {
   );
 }
 
-// components/skeletons/TableRowSkeleton.tsx
 import { SkeletonBox } from './SkeletonBox';
 
 export function TableRowSkeleton() {
@@ -87,7 +82,6 @@ export function TableRowSkeleton() {
   );
 }
 
-// components/skeletons/InvoicesTableSkeleton.tsx
 import { TableRowSkeleton } from './TableRowSkeleton';
 const shimmer =
   'before:absolute before:inset-0 before:-translate-x-full before:animate-shimmer before:bg-gradient-to-r before:from-transparent before:via-white/60 before:to-transparent';
