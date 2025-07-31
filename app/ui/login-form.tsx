@@ -9,29 +9,50 @@ import {
 import { ArrowRightIcon } from "@heroicons/react/20/solid";
 import { Button } from "./button";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError("");
 
     // Basic validation
     if (!email || !password) {
-      setError("Email and password are required.");
+      setError("Email dan password diperlukan.");
+      setIsLoading(false);
       return;
     }
 
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError("Password minimal 6 karakter.");
+      setIsLoading(false);
       return;
     }
 
-    // TODO: Send to backend or NextAuth
-    setError(""); // Clear errors
-    console.log("Submitting:", { email, password });
+    // Simulate login process
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // For demo purposes, accept any valid email/password
+      if (email && password.length >= 6) {
+        // Redirect to dashboard
+        router.push('/dashboard');
+      } else {
+        setError("Email atau password salah.");
+      }
+    } catch (err) {
+      setError("Terjadi kesalahan. Silakan coba lagi.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -89,8 +110,8 @@ export default function LoginForm() {
         </div>
 
         {/* Submit Button */}
-        <Button type="submit" className="mt-4 w-full">
-          Log in <ArrowRightIcon className="ml-auto h-5 w-5 text-gray-50" />
+        <Button type="submit" className="mt-4 w-full" disabled={isLoading}>
+          {isLoading ? "Memproses..." : "Masuk"} <ArrowRightIcon className="ml-auto h-5 w-5 text-gray-50" />
         </Button>
 
         {/* Error Display */}
