@@ -9,6 +9,7 @@ import {
 } from "./definitions";
 import { formatCurrency } from "./utils";
 import { ERROR_MESSAGES, API_CONFIG, CACHE_KEYS } from "./constants";
+import { customers, invoices, revenue } from "./placeholder-data";
 
 // Simple in-memory cache (in production, use Redis or similar)
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -76,15 +77,9 @@ export const revenueService = {
       return cached;
     }
 
-    return withRetry(async () => {
-      try {
-        const data = await sql<Revenue>`SELECT * FROM revenue`;
-        setCachedData(cacheKey, data.rows);
-        return data.rows;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchRevenue');
-      }
-    });
+    // Use placeholder data for now
+    setCachedData(cacheKey, revenue);
+    return revenue;
   }
 };
 
@@ -98,26 +93,20 @@ export const invoiceService = {
       return cached;
     }
 
-    return withRetry(async () => {
-      try {
-        const data = await sql<LatestInvoiceRaw>`
-          SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-          FROM invoices
-          JOIN customers ON invoices.customer_id = customers.id
-          ORDER BY invoices.date DESC
-          LIMIT 5`;
-
-        const latestInvoices = data.rows.map((invoice) => ({
-          ...invoice,
-          amount: formatCurrency(invoice.amount),
-        }));
-        
-        setCachedData(cacheKey, latestInvoices);
-        return latestInvoices;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchLatestInvoices');
-      }
+    // Use placeholder data for now
+    const latestInvoices = invoices.slice(0, 5).map((invoice, index) => {
+      const customer = customers.find(c => c.id === invoice.customer_id);
+      return {
+        id: `invoice-${index}`,
+        amount: formatCurrency(invoice.amount),
+        name: customer?.name || 'Unknown Customer',
+        email: customer?.email || 'unknown@example.com',
+        image_url: customer?.image_url || '/customers/default.png',
+      };
     });
+    
+    setCachedData(cacheKey, latestInvoices);
+    return latestInvoices;
   },
 
   async fetchCardData() {
@@ -128,114 +117,100 @@ export const invoiceService = {
       return cached;
     }
 
-    return withRetry(async () => {
-      try {
-        const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
-        const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
-        const invoiceStatusPromise = sql`SELECT
-             SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS "paid",
-             SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
-             FROM invoices`;
+    // Use placeholder data for now
+    const numberOfInvoices = invoices.length;
+    const numberOfCustomers = customers.length;
+    const totalPaidInvoices = formatCurrency(
+      invoices
+        .filter(invoice => invoice.status === 'paid')
+        .reduce((sum, invoice) => sum + invoice.amount, 0)
+    );
+    const totalPendingInvoices = formatCurrency(
+      invoices
+        .filter(invoice => invoice.status === 'pending')
+        .reduce((sum, invoice) => sum + invoice.amount, 0)
+    );
 
-        const data = await Promise.all([
-          invoiceCountPromise,
-          customerCountPromise,
-          invoiceStatusPromise,
-        ]);
-
-        const numberOfInvoices = Number(data[0].rows[0].count ?? "0");
-        const numberOfCustomers = Number(data[1].rows[0].count ?? "0");
-        const totalPaidInvoices = formatCurrency(data[2].rows[0].paid ?? "0");
-        const totalPendingInvoices = formatCurrency(data[2].rows[0].pending ?? "0");
-
-        const result = {
-          numberOfCustomers,
-          numberOfInvoices,
-          totalPaidInvoices,
-          totalPendingInvoices,
-        };
-        
-        setCachedData(cacheKey, result);
-        return result;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchCardData');
-      }
-    });
+    const result = {
+      numberOfCustomers,
+      numberOfInvoices,
+      totalPaidInvoices,
+      totalPendingInvoices,
+    };
+    
+    setCachedData(cacheKey, result);
+    return result;
   },
 
   async fetchFilteredInvoices(query: string, currentPage: number) {
     const offset = (currentPage - 1) * 6;
 
-    return withRetry(async () => {
-      try {
-        const invoices = await sql<InvoicesTable>`
-          SELECT
-            invoices.id,
-            invoices.amount,
-            invoices.date,
-            invoices.status,
-            customers.name,
-            customers.email,
-            customers.image_url
-          FROM invoices
-          JOIN customers ON invoices.customer_id = customers.id
-          WHERE
-            customers.name ILIKE ${`%${query}%`} OR
-            customers.email ILIKE ${`%${query}%`} OR
-            invoices.amount::text ILIKE ${`%${query}%`} OR
-            invoices.date::text ILIKE ${`%${query}%`}
-          ORDER BY invoices.date DESC
-          LIMIT 6 OFFSET ${offset}`;
+    // Use placeholder data for now
+    const filteredInvoices = invoices
+      .map((invoice, index) => {
+        const customer = customers.find(c => c.id === invoice.customer_id);
+        return {
+          id: `invoice-${index}`,
+          amount: invoice.amount,
+          date: invoice.date,
+          status: invoice.status,
+          name: customer?.name || 'Unknown Customer',
+          email: customer?.email || 'unknown@example.com',
+          image_url: customer?.image_url || '/customers/default.png',
+        };
+      })
+      .filter(invoice => 
+        invoice.name.toLowerCase().includes(query.toLowerCase()) ||
+        invoice.email.toLowerCase().includes(query.toLowerCase()) ||
+        invoice.amount.toString().includes(query) ||
+        invoice.date.includes(query)
+      )
+      .slice(offset, offset + 6);
 
-        return invoices.rows;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchFilteredInvoices');
-      }
-    });
+    return filteredInvoices;
   },
 
   async fetchInvoicesPages(query: string) {
-    return withRetry(async () => {
-      try {
-        const count = await sql`SELECT COUNT(*)
-        FROM invoices
-        JOIN customers ON invoices.customer_id = customers.id
-        WHERE
-          customers.name ILIKE ${`%${query}%`} OR
-          customers.email ILIKE ${`%${query}%`} OR
-          invoices.amount::text ILIKE ${`%${query}%`} OR
-          invoices.date::text ILIKE ${`%${query}%`}`;
+    // Use placeholder data for now
+    const filteredInvoices = invoices
+      .map((invoice, index) => {
+        const customer = customers.find(c => c.id === invoice.customer_id);
+        return {
+          id: `invoice-${index}`,
+          amount: invoice.amount,
+          date: invoice.date,
+          status: invoice.status,
+          name: customer?.name || 'Unknown Customer',
+          email: customer?.email || 'unknown@example.com',
+          image_url: customer?.image_url || '/customers/default.png',
+        };
+      })
+      .filter(invoice => 
+        invoice.name.toLowerCase().includes(query.toLowerCase()) ||
+        invoice.email.toLowerCase().includes(query.toLowerCase()) ||
+        invoice.amount.toString().includes(query) ||
+        invoice.date.includes(query)
+      );
 
-        const totalPages = Math.ceil(Number(count.rows[0].count) / 6);
-        return totalPages;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchInvoicesPages');
-      }
-    });
+    const totalPages = Math.ceil(filteredInvoices.length / 6);
+    return totalPages;
   },
 
   async fetchInvoiceById(id: string) {
-    return withRetry(async () => {
-      try {
-        const data = await sql<InvoiceForm>`
-          SELECT
-            invoices.id,
-            invoices.customer_id,
-            invoices.amount,
-            invoices.status
-          FROM invoices
-          WHERE invoices.id = ${id}`;
+    // Use placeholder data for now
+    const invoiceIndex = parseInt(id.replace('invoice-', ''));
+    const invoice = invoices[invoiceIndex];
+    
+    if (!invoice) {
+      return null;
+    }
 
-        const invoice = data.rows.map((invoice) => ({
-          ...invoice,
-          amount: invoice.amount / 100,
-        }));
-
-        return invoice[0];
-      } catch (error) {
-        handleDatabaseError(error, 'fetchInvoiceById');
-      }
-    });
+    return {
+      id: `invoice-${invoiceIndex}`,
+      customer_id: invoice.customer_id,
+      amount: invoice.amount / 100,
+      status: invoice.status,
+    };
   },
 
   async createInvoice(formData: FormData) {
@@ -306,56 +281,36 @@ export const customerService = {
       return cached;
     }
 
-    return withRetry(async () => {
-      try {
-        const data = await sql<CustomerField>`
-          SELECT
-            id,
-            name
-          FROM customers
-          ORDER BY name ASC
-        `;
-        
-        setCachedData(cacheKey, data.rows);
-        return data.rows;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchCustomers');
-      }
-    });
+    // Use placeholder data for now
+    setCachedData(cacheKey, customers);
+    return customers;
   },
 
   async fetchFilteredCustomers(query: string) {
-    return withRetry(async () => {
-      try {
-        const data = await sql<CustomersTableType>`
-          SELECT
-            customers.id,
-            customers.name,
-            customers.email,
-            customers.image_url,
-            COUNT(invoices.id) AS total_invoices,
-            SUM(CASE WHEN invoices.status = 'pending' THEN invoices.amount ELSE 0 END) AS total_pending,
-            SUM(CASE WHEN invoices.status = 'paid' THEN invoices.amount ELSE 0 END) AS total_paid
-          FROM customers
-          LEFT JOIN invoices ON customers.id = invoices.customer_id
-          WHERE
-            customers.name ILIKE ${`%${query}%`} OR
-            customers.email ILIKE ${`%${query}%`}
-          GROUP BY customers.id, customers.name, customers.email, customers.image_url
-          ORDER BY customers.name ASC
-        `;
+    // Use placeholder data for now
+    const filteredCustomers = customers
+      .filter(customer => 
+        customer.name.toLowerCase().includes(query.toLowerCase()) ||
+        customer.email.toLowerCase().includes(query.toLowerCase())
+      )
+      .map(customer => {
+        const customerInvoices = invoices.filter(invoice => invoice.customer_id === customer.id);
+        const total_pending = customerInvoices
+          .filter(invoice => invoice.status === 'pending')
+          .reduce((sum, invoice) => sum + invoice.amount, 0);
+        const total_paid = customerInvoices
+          .filter(invoice => invoice.status === 'paid')
+          .reduce((sum, invoice) => sum + invoice.amount, 0);
 
-        const customers = data.rows.map((customer) => ({
+        return {
           ...customer,
-          total_pending: formatCurrency(customer.total_pending || 0),
-          total_paid: formatCurrency(customer.total_paid || 0),
-        }));
+          total_invoices: customerInvoices.length,
+          total_pending: formatCurrency(total_pending),
+          total_paid: formatCurrency(total_paid),
+        };
+      });
 
-        return customers;
-      } catch (error) {
-        handleDatabaseError(error, 'fetchFilteredCustomers');
-      }
-    });
+    return filteredCustomers;
   }
 };
 
